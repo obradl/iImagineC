@@ -31,13 +31,18 @@ namespace iImagineC.WCF.Test
             _factory = new DuplexChannelFactory<ISubscriberService>(_instance, binding, new EndpointAddress(url));
 
             _chan = _factory.CreateChannel();
-            _chan.Register(name);
+            _chan.Subscribe(name);
         }
 
         public void Callback(string data)
         {
             Data = data;
             OnData.Set();
+        }
+
+        public void Unsubscribe()
+        {
+            _chan.Unsubscribe();
         }
 
         public void Kill()

@@ -11,8 +11,11 @@ namespace iImagineC.WCF
     [ServiceContract(CallbackContract = typeof(ISubscribedClient))]
     public interface ISubscriberService
     {
+        [OperationContract(IsOneWay = false)]
+        void Subscribe(string name);
+
         [OperationContract(IsOneWay = true)]
-        void Register(string data);
+        void Unsubscribe();
     }
 
 }

@@ -23,9 +23,10 @@ namespace iImagineC.WCF
         //====================================================================================================
 
         //====================================================================================================
-        public SubscriberService() : this((s, e) => Trace.TraceError(s, e)){}
+        public SubscriberService() : this(null){}
         public SubscriberService(Action<string, object[]> onError)
         {
+            if (onError == null) onError = (s, e) => Trace.TraceError(s, e);
             _onError = onError;
         }
         //====================================================================================================
@@ -35,7 +36,7 @@ namespace iImagineC.WCF
         /// Registers a WCF subscriber/client to receive PublishToAll data.
         /// </summary>
         /// <param name="name">Identifier for logging purposes only.</param>
-        public void Register(string name)
+        public void Subscribe(string name)
         {
             try
             {
@@ -44,21 +45,46 @@ namespace iImagineC.WCF
 
                 lock (_locker)
                 {
-                    _subscribers.Remove(subscriber);
+                    _subscribers.Remove(subscriber);//kill any old subscriptions if Subscribed was called twice.
                     _subscribers.Add(subscriber);
                 }
-                //Can log successful registration here
-                //Trace.TraceInformation("Subscriber/Client {0} registered.", name);
+                //Can log successful subscriptions here
+                Trace.TraceInformation("Client {0} subscribed.", name);
             }
             catch (Exception e)
             {
-                _onError("Unable to register client {0}. {1}", new object[]{name, e});
-                throw;
+                _onError("Unable to subscribe client {0}. {1}", new object[]{name, e});
+                throw;//Subscribe is NOT a OneWay, so exceptions will propogate to let the client know they did not subscribe.
+            }
+        }
+        //====================================================================================================
+        public void Unsubscribe()
+        {
+            try
+            {
+                var callback = OperationContext.Current.GetCallbackChannel<ISubscribedClient>();
+                Subscriber subscriber;
+
+                lock (_locker)
+                {
+                    subscriber = _subscribers.FirstOrDefault(a => a.Channel == callback);
+                    _subscribers.Remove(subscriber);
+                }
+
+                //Can log successful unsubscriptions here
+                if (subscriber != null)
+                    Trace.TraceInformation("Client {0} unsubscribed.", subscriber.Name);
+                else Trace.TraceWarning("Client could not be found to unsubscribe.");
+            }
+            catch (Exception e)
+            {
+                _onError("Unable to unsubscribe client. {0}", new object[] { e });
+                //throw;//Unsubscribe is marked as OneWay, exceptions will not propogate anyway. (Can enable for WCF logging).
             }
         }
         //====================================================================================================
         /// <summary>
-        /// Blocks to call PublishToALl if there are active publish calls in progress.
+        /// Blocks to call PublishToAll if there are active publish calls in progress.
         /// 
         /// This does NOT guarantee synchronization unless used exclusively. 
         /// If PublishToAllSerial is used exclusively (PublishToAll is not used) then all calls to publish
@@ -104,7 +130,7 @@ namespace iImagineC.WCF
                         catch (Exception e) { _onError("Failed to send data to {0}. {1}", new object[]{ subscriber.Name, e }); }
                     });
 
-                    //Trace.TraceInformation("Finished publishing data to all subscribers");
+                    Trace.TraceInformation("Finished publishing data to all subscribers");
                     _publishInProgress.Set();
                 });
         }
