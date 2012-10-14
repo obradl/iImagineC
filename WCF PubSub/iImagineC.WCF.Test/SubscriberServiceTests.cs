@@ -199,6 +199,48 @@ namespace iImagineC.WCF.Test
         }
 
         [TestMethod]
+        public void SubscriberService_SubscribeUnsubscribeTest()
+        {
+            using (var host = new WcfHost())
+            {
+                List<Client> clients = new List<Client>();
+                try
+                {
+                    string data1 = "First Publish";
+                    string data2 = "Publish Again";
+
+                    clients.Add(new Client("Client1"));
+                    clients.Add(new Client("Client2"));
+
+                    Assert.AreEqual(2, host.ActiveClients, "SHould have 2 subscribers");
+                    host.instance.PublishToAllSerial(data1);
+
+                    clients.ForEach(a => a.OnData.WaitOne(100));
+                    Thread.Sleep(100);
+
+                    clients.ForEach(a => Assert.AreEqual(data1, a.Data, "Initial publish does not match"));
+
+                    clients.Last().Unsubscribe();
+                    Thread.Sleep(100);//Wait for unsubscribe
+
+
+                    Assert.AreEqual(1, host.ActiveClients, "SHould have 1 subscribers");
+                    host.instance.PublishToAllSerial(data2);
+
+                    clients.ForEach(a => a.OnData.WaitOne(100));
+                    Thread.Sleep(100);
+                    Assert.AreEqual(data2, clients.First().Data, "Client1 should get new data");
+                    Assert.AreEqual(data1, clients.Last().Data, "Client2 should have old data");
+                }
+                finally
+                {
+                    //Close clients
+                    clients.ForEach(a => a.Dispose());
+                }
+            }
+        }
+
+        [TestMethod]
         public void TestWhenWCFCallBackIsNotOpen()
         {
             using (var host = new WcfHost())
